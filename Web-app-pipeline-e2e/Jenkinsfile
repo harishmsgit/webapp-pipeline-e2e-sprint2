@@ -79,16 +79,6 @@ pipeline {
       steps {
         script {
           withDockerContainer(image: "${DOCKER_IMAGE}", args: '-v /var/run/docker.sock:/var/run/docker.sock') {
-            sh 'aws sts get-caller-identity'
-          }
-        }
-      }
-    }
-
-    stage('Terraform Init') {
-      steps {
-        script {
-          withDockerContainer(image: "${DOCKER_IMAGE}", args: '-v /var/run/docker.sock:/var/run/docker.sock') {
             sh '''
               cd Web-app-pipeline-e2e/terraform
               terraform init \
