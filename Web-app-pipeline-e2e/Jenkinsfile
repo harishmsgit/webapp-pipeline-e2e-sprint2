@@ -13,6 +13,7 @@ pipeline {
     TF_STATE_BUCKET     = 'webapp-pipeline-terraform-state'
     TF_STATE_LOCK_TABLE = 'webapp-pipeline-terraform-lock'
     TF_STATE_KEY        = 'global/sprint2/terraform.tfstate'
+    DOCKER_RUN_ARGS     = '-v /var/run/docker.sock:/var/run/docker.sock --user root'
     DOCKER_IMAGE        = 'pipeline-executor:latest'
   }
 
@@ -52,7 +53,7 @@ pipeline {
     stage('Validate AWS Access') {
       steps {
         script {
-          withDockerContainer(image: "${DOCKER_IMAGE}", args: '-v /var/run/docker.sock:/var/run/docker.sock') {
+          withDockerContainer(image: "${DOCKER_IMAGE}", args: "${DOCKER_RUN_ARGS}") {
             sh 'aws sts get-caller-identity'
           }
         }
@@ -62,7 +63,7 @@ pipeline {
     stage('Terraform Format') {
       steps {
         script {
-          withDockerContainer(image: "${DOCKER_IMAGE}", args: '-v /var/run/docker.sock:/var/run/docker.sock') {
+          withDockerContainer(image: "${DOCKER_IMAGE}", args: "${DOCKER_RUN_ARGS}") {
             sh '''
               cd Web-app-pipeline-e2e/terraform
               terraform fmt -check
@@ -75,7 +76,7 @@ pipeline {
     stage('Terraform Init') {
       steps {
         script {
-          withDockerContainer(image: "${DOCKER_IMAGE}", args: '-v /var/run/docker.sock:/var/run/docker.sock') {
+          withDockerContainer(image: "${DOCKER_IMAGE}", args: "${DOCKER_RUN_ARGS}") {
             sh '''
               cd Web-app-pipeline-e2e/terraform
               terraform init \
@@ -92,7 +93,7 @@ pipeline {
     stage('Terraform Validate') {
       steps {
         script {
-          withDockerContainer(image: "${DOCKER_IMAGE}", args: '-v /var/run/docker.sock:/var/run/docker.sock') {
+          withDockerContainer(image: "${DOCKER_IMAGE}", args: "${DOCKER_RUN_ARGS}") {
             sh '''
               cd Web-app-pipeline-e2e/terraform
               terraform validate
@@ -105,7 +106,7 @@ pipeline {
     stage('Terraform Plan') {
       steps {
         script {
-          withDockerContainer(image: "${DOCKER_IMAGE}", args: '-v /var/run/docker.sock:/var/run/docker.sock') {
+          withDockerContainer(image: "${DOCKER_IMAGE}", args: "${DOCKER_RUN_ARGS}") {
             sh '''
               cd Web-app-pipeline-e2e/terraform
               terraform plan -var-file=terraform.tfvars.example
@@ -125,7 +126,7 @@ pipeline {
       steps {
         script {
           input message: 'Confirm Terraform apply on main branch?', ok: 'Apply'
-          withDockerContainer(image: "${DOCKER_IMAGE}", args: '-v /var/run/docker.sock:/var/run/docker.sock') {
+          withDockerContainer(image: "${DOCKER_IMAGE}", args: "${DOCKER_RUN_ARGS}") {
             sh '''
               cd Web-app-pipeline-e2e/terraform
               terraform apply -auto-approve -var-file=terraform.tfvars.example
@@ -138,7 +139,7 @@ pipeline {
     stage('Build Docker Image') {
       steps {
         script {
-          withDockerContainer(image: "${DOCKER_IMAGE}", args: '-v /var/run/docker.sock:/var/run/docker.sock') {
+          withDockerContainer(image: "${DOCKER_IMAGE}", args: "${DOCKER_RUN_ARGS}") {
             sh 'cd Web-app-pipeline-e2e && docker build -t web-app-sprint2:${IMAGE_TAG} .'
           }
         }
@@ -148,7 +149,7 @@ pipeline {
     stage('Login to ECR') {
       steps {
         script {
-          withDockerContainer(image: "${DOCKER_IMAGE}", args: '-v /var/run/docker.sock:/var/run/docker.sock') {
+          withDockerContainer(image: "${DOCKER_IMAGE}", args: "${DOCKER_RUN_ARGS}") {
             sh '''
               aws ecr get-login --no-include-email --region ${AWS_REGION} | sh
             '''
@@ -167,7 +168,7 @@ pipeline {
       }
       steps {
         script {
-          withDockerContainer(image: "${DOCKER_IMAGE}", args: '-v /var/run/docker.sock:/var/run/docker.sock') {
+          withDockerContainer(image: "${DOCKER_IMAGE}", args: "${DOCKER_RUN_ARGS}") {
             sh '''
               cd Web-app-pipeline-e2e
               aws ecr describe-repositories --repository-names ${ECR_REPO_NAME} --region ${AWS_REGION} || \
