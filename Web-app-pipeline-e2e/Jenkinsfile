@@ -1,11 +1,5 @@
 pipeline {
-  agent {
-    dockerfile {
-      filename 'Dockerfile.pipeline'
-      dir 'Web-app-pipeline-e2e'
-      args '-v /var/run/docker.sock:/var/run/docker.sock'
-    }
-  }
+  agent any
 
   parameters {
     booleanParam(name: 'TF_APPLY', defaultValue: false, description: 'Apply Terraform infrastructure changes after planning')
@@ -19,6 +13,7 @@ pipeline {
     TF_STATE_BUCKET     = 'webapp-pipeline-terraform-state'
     TF_STATE_LOCK_TABLE = 'webapp-pipeline-terraform-lock'
     TF_STATE_KEY        = 'global/sprint2/terraform.tfstate'
+    DOCKER_IMAGE        = 'pipeline-executor:latest'
   }
 
   options {
@@ -33,13 +28,25 @@ pipeline {
       }
     }
 
+    stage('Build Pipeline Docker Image') {
+      steps {
+        script {
+          sh 'cd Web-app-pipeline-e2e && docker build -f Dockerfile.pipeline -t ${DOCKER_IMAGE} .'
+        }
+      }
+    }
+
     stage('Set Branch Context') {
       steps {
         script {
-          env.BRANCH_NAME = env.BRANCH_NAME ?: 'main'
-          env.IMAGE_TAG = "${env.BUILD_ID}-${env.BRANCH_NAME.replaceAll('/','-')}"
-          env.IMAGE_URI = "${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_REGION}.amazonaws.com/${env.ECR_REPO_NAME}:${env.IMAGE_TAG}"
-          echo "Building branch ${env.BRANCH_NAME} with image tag ${env.IMAGE_TAG}"
+          withDockerContainer(image: "${DOCKER_IMAGE}", args: '-v /var/run/docker.sock:/var/run/docker.sock') {
+            sh '''
+              export BRANCH_NAME=${BRANCH_NAME:-main}
+              export IMAGE_TAG="${BUILD_ID}-${BRANCH_NAME//\//-}"
+              export IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG}"
+              echo "Building branch ${BRANCH_NAME} with image tag ${IMAGE_TAG}"
+            '''
+          }
         }
       }
     }
@@ -47,16 +54,19 @@ pipeline {
     stage('Validate AWS Access') {
       steps {
         script {
-          sh 'aws sts get-caller-identity'
+          withDockerContainer(image: "${DOCKER_IMAGE}", args: '-v /var/run/docker.sock:/var/run/docker.sock') {
+            sh 'aws sts get-caller-identity'
+          }
         }
       }
     }
 
     stage('Terraform Init') {
       steps {
-        dir("${TF_WORKING_DIR}") {
-          script {
+        script {
+          withDockerContainer(image: "${DOCKER_IMAGE}", args: '-v /var/run/docker.sock:/var/run/docker.sock') {
             sh '''
+              cd Web-app-pipeline-e2e/terraform
               terraform init \
                 -backend-config="bucket=${TF_STATE_BUCKET}" \
                 -backend-config="key=${TF_STATE_KEY}" \
@@ -70,9 +80,12 @@ pipeline {
 
     stage('Terraform Plan') {
       steps {
-        dir("${TF_WORKING_DIR}") {
-          script {
-            sh 'terraform plan -var-file=terraform.tfvars.example'
+        script {
+          withDockerContainer(image: "${DOCKER_IMAGE}", args: '-v /var/run/docker.sock:/var/run/docker.sock') {
+            sh '''
+              cd Web-app-pipeline-e2e/terraform
+              terraform plan -var-file=terraform.tfvars.example
+            '''
           }
         }
       }
@@ -86,9 +99,12 @@ pipeline {
         }
       }
       steps {
-        dir("${TF_WORKING_DIR}") {
-          script {
-            sh 'terraform apply -auto-approve -var-file=terraform.tfvars.example'
+        script {
+          withDockerContainer(image: "${DOCKER_IMAGE}", args: '-v /var/run/docker.sock:/var/run/docker.sock') {
+            sh '''
+              cd Web-app-pipeline-e2e/terraform
+              terraform apply -auto-approve -var-file=terraform.tfvars.example
+            '''
           }
         }
       }
@@ -97,7 +113,9 @@ pipeline {
     stage('Build Docker Image') {
       steps {
         script {
-          sh 'docker build -t web-app-sprint2:${IMAGE_TAG} .'
+          withDockerContainer(image: "${DOCKER_IMAGE}", args: '-v /var/run/docker.sock:/var/run/docker.sock') {
+            sh 'cd Web-app-pipeline-e2e && docker build -t web-app-sprint2:${IMAGE_TAG} .'
+          }
         }
       }
     }
@@ -105,9 +123,11 @@ pipeline {
     stage('Login to ECR') {
       steps {
         script {
-          sh '''
-            aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
-          '''
+          withDockerContainer(image: "${DOCKER_IMAGE}", args: '-v /var/run/docker.sock:/var/run/docker.sock') {
+            sh '''
+              aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+            '''
+          }
         }
       }
     }
@@ -120,12 +140,15 @@ pipeline {
       }
       steps {
         script {
-          sh '''
-            aws ecr describe-repositories --repository-names ${ECR_REPO_NAME} --region ${AWS_REGION} || \
-              aws ecr create-repository --repository-name ${ECR_REPO_NAME} --region ${AWS_REGION}
-            docker tag web-app-sprint2:${IMAGE_TAG} ${IMAGE_URI}
-            docker push ${IMAGE_URI}
-          '''
+          withDockerContainer(image: "${DOCKER_IMAGE}", args: '-v /var/run/docker.sock:/var/run/docker.sock') {
+            sh '''
+              cd Web-app-pipeline-e2e
+              aws ecr describe-repositories --repository-names ${ECR_REPO_NAME} --region ${AWS_REGION} || \
+                aws ecr create-repository --repository-name ${ECR_REPO_NAME} --region ${AWS_REGION}
+              docker tag web-app-sprint2:${IMAGE_TAG} ${IMAGE_URI}
+              docker push ${IMAGE_URI}
+            '''
+          }
         }
       }
     }
