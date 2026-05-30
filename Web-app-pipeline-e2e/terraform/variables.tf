@@ -42,6 +42,13 @@ variable "terraform_backend_role_name" {
   default     = "TerraformS3DynamoAccessRole"
 }
 
+variable "backend_attached_role_name" {
+  # Name of an existing IAM role to attach the backend access policy to.
+  description = "Existing IAM role name (e.g., instanceRole) to grant S3/DynamoDB backend permissions"
+  type        = string
+  default     = "instanceRole"
+}
+
 variable "cluster_name" {
   # Base name for the EKS cluster and related resources.
   description = "EKS cluster name"

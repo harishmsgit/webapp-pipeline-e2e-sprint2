@@ -242,6 +242,33 @@ resource "aws_iam_role_policy" "terraform_s3_dynamo" {
   })
 }
 
+# Option: attach the backend permissions to an existing role (e.g., instanceRole)
+resource "aws_iam_role_policy" "attach_instance_role_backend" {
+  name = "terraform-backend-access-instance-role"
+  role = var.backend_attached_role_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket"]
+        Resource = "arn:aws:s3:::${var.tf_state_bucket}"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+        Resource = "arn:aws:s3:::${var.tf_state_bucket}/*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem", "dynamodb:UpdateItem"]
+        Resource = "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.tf_state_lock_table}"
+      }
+    ]
+  })
+}
+
 # Create the IAM role for EKS worker nodes.
 resource "aws_iam_role" "eks_node_role" {
   name               = "${var.cluster_name}-node-role"
