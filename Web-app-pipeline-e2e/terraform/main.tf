@@ -300,7 +300,7 @@ resource "aws_eks_cluster" "eks" {
 
   vpc_config {
     # Use the public subnets for the EKS cluster.
-    subnet_ids         = aws_subnet.public[*].id
+    subnet_ids = aws_subnet.public[*].id
     # Attach the EKS control plane security group.
     security_group_ids = [aws_security_group.eks_cluster.id]
     # Allow public access to the Kubernetes API server.
