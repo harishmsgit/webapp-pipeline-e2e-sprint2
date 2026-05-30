@@ -65,30 +65,34 @@ pipeline {
       }
     }
 
-    stage('Validate AWS Access') {
-      steps {
-        script {
-          withDockerContainer(image: "${DOCKER_IMAGE}", args: "${DOCKER_RUN_ARGS}") {
-            sh 'aws sts get-caller-identity'
+    stage('Validation & Terraform Planning') {
+      parallel {
+        stage('Terraform Format') {
+          steps {
+            script {
+              withDockerContainer(image: "${DOCKER_IMAGE}", args: "${DOCKER_RUN_ARGS}") {
+                sh '''
+                  cd Web-app-pipeline-e2e/terraform
+                  terraform fmt -check
+                '''
+              }
+            }
+          }
+        }
+
+        stage('Validate AWS Access') {
+          steps {
+            script {
+              withDockerContainer(image: "${DOCKER_IMAGE}", args: "${DOCKER_RUN_ARGS}") {
+                sh 'aws sts get-caller-identity'
+              }
+            }
           }
         }
       }
     }
 
-    stage('Terraform Format') {
-      steps {
-        script {
-          withDockerContainer(image: "${DOCKER_IMAGE}", args: "${DOCKER_RUN_ARGS}") {
-            sh '''
-              cd Web-app-pipeline-e2e/terraform
-              terraform fmt -check
-            '''
-          }
-        }
-      }
-    }
-
-    stage('Terraform Init') {
+    stage('Terraform Init & Validate') {
       steps {
         script {
           withDockerContainer(image: "${DOCKER_IMAGE}", args: "${DOCKER_RUN_ARGS}") {
@@ -99,18 +103,6 @@ pipeline {
                 -backend-config="key=${TF_STATE_KEY}" \
                 -backend-config="region=${AWS_REGION}" \
                 -backend-config="dynamodb_table=${TF_STATE_LOCK_TABLE}"
-            '''
-          }
-        }
-      }
-    }
-
-    stage('Terraform Validate') {
-      steps {
-        script {
-          withDockerContainer(image: "${DOCKER_IMAGE}", args: "${DOCKER_RUN_ARGS}") {
-            sh '''
-              cd Web-app-pipeline-e2e/terraform
               terraform validate
             '''
           }
