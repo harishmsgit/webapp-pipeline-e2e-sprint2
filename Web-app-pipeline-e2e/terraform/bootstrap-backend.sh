@@ -1,10 +1,10 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/usr/bin/env sh
+set -eu
 
 cd "$(dirname "$0")"
 
 # Create tfvars from example if needed.
-if [[ ! -f terraform.tfvars ]]; then
+if [ ! -f terraform.tfvars ]; then
   cp terraform.tfvars.example terraform.tfvars
   echo "Created terraform.tfvars from terraform.tfvars.example"
 fi
