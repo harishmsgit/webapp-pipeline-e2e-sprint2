@@ -84,7 +84,7 @@ This workspace now includes Sprint 2 infrastructure provisioning and Jenkins int
 2. Point it to this repository.
 3. Allow Jenkins to run using the `Jenkinsfile` in the repo root.
 4. Configure AWS credentials and ECR permissions in Jenkins.
-5. Use the `TF_APPLY` build parameter to enable Terraform apply during the job.
+5. Use the `TF_APPLY` build parameter to enable Terraform apply during the job. The pipeline now requires manual confirmation before applying infrastructure on the `main` branch.
 
 ### Branch behavior
 - The pipeline automatically detects the current branch via `BRANCH_NAME`.
