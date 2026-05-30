@@ -20,7 +20,7 @@ pipeline {
   options {
     skipDefaultCheckout()
     timestamps()
-    buildDiscarder(logRotator(numToKeepStr: '20'))
+    buildDiscarder(logRotator(numToKeepStr: '10', artifactNumToKeepStr: '5'))
   }
 
   stages {
@@ -122,6 +122,7 @@ pipeline {
           sh '''
             cd Web-app-pipeline-e2e/terraform
             rm -rf .terraform .terraform.lock.hcl
+            docker system prune -f --volumes
           '''
         }
       }
