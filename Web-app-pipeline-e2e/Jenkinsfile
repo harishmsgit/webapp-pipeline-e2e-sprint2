@@ -2,7 +2,7 @@ pipeline {
   agent any
 
   parameters {
-    booleanParam(name: 'TF_APPLY', defaultValue: false, description: 'Apply Terraform infrastructure changes after planning')
+    booleanParam(name: 'TF_APPLY', defaultValue: false, description: 'Apply Terraform infrastructure changes after planning. Use only when the Jenkins AWS identity has IAM create permissions.')
   }
 
   environment {
@@ -118,12 +118,13 @@ pipeline {
     stage('Terraform Apply') {
       when {
         allOf {
-          expression { params.TF_APPLY?.toString()?.toBoolean() }
+          expression { return params.TF_APPLY == true }
           expression { env.BRANCH_NAME == 'main' }
         }
       }
       steps {
         script {
+          input message: 'Confirm Terraform apply on main branch?', ok: 'Apply'
           withDockerContainer(image: "${DOCKER_IMAGE}", args: '-v /var/run/docker.sock:/var/run/docker.sock') {
             sh '''
               cd Web-app-pipeline-e2e/terraform
