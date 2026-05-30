@@ -39,14 +39,10 @@ pipeline {
     stage('Set Branch Context') {
       steps {
         script {
-          withDockerContainer(image: "${DOCKER_IMAGE}", args: '-v /var/run/docker.sock:/var/run/docker.sock') {
-            sh '''
-              export BRANCH_NAME=${BRANCH_NAME:-main}
-              export IMAGE_TAG="${BUILD_ID}-${BRANCH_NAME//\//-}"
-              export IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG}"
-              echo "Building branch ${BRANCH_NAME} with image tag ${IMAGE_TAG}"
-            '''
-          }
+          env.BRANCH_NAME = env.BRANCH_NAME ?: 'main'
+          env.IMAGE_TAG = "${env.BUILD_ID}-${env.BRANCH_NAME.replaceAll('/', '-')}"
+          env.IMAGE_URI = "${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_REGION}.amazonaws.com/${env.ECR_REPO_NAME}:${env.IMAGE_TAG}"
+          echo "Building branch ${env.BRANCH_NAME} with image tag ${env.IMAGE_TAG}"
         }
       }
     }
