@@ -13,7 +13,7 @@ This folder contains Terraform configuration to provision AWS resources for Spri
    cp terraform.tfvars.example terraform.tfvars
    ```
 
-2. Initialize Terraform with backend config:
+2. If the backend bucket and DynamoDB lock table already exist, initialize Terraform with backend config:
    ```sh
    terraform init \
      -backend-config="bucket=webapp-pipeline-terraform-state" \
@@ -22,7 +22,12 @@ This folder contains Terraform configuration to provision AWS resources for Spri
      -backend-config="dynamodb_table=webapp-pipeline-terraform-lock"
    ```
 
-3. Plan and apply:
+3. If the backend resources do not yet exist, bootstrap them first:
+   ```sh
+   bash bootstrap-backend.sh
+   ```
+
+4. Plan and apply using the initialized backend:
    ```sh
    terraform plan -var-file=terraform.tfvars
    terraform apply -auto-approve -var-file=terraform.tfvars

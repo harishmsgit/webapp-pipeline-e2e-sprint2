@@ -35,6 +35,13 @@ variable "tf_state_key" {
   default     = "global/sprint2/terraform.tfstate"
 }
 
+variable "terraform_backend_role_name" {
+  # IAM role name used for Terraform remote state backend access.
+  description = "Name of the IAM role that can access Terraform backend S3 and DynamoDB resources"
+  type        = string
+  default     = "TerraformS3DynamoAccessRole"
+}
+
 variable "cluster_name" {
   # Base name for the EKS cluster and related resources.
   description = "EKS cluster name"

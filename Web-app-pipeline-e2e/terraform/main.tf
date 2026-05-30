@@ -197,6 +197,51 @@ resource "aws_iam_role_policy_attachment" "cluster_AmazonEKSServicePolicy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSServicePolicy"
 }
 
+# Create a Terraform backend IAM role for S3 and DynamoDB state access.
+data "aws_iam_policy_document" "terraform_backend_assume_role" {
+  statement {
+    effect = "Allow"
+
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:aws:iam::${var.aws_account_id}:root"]
+    }
+
+    actions = ["sts:AssumeRole"]
+  }
+}
+
+resource "aws_iam_role" "terraform_backend_role" {
+  name               = var.terraform_backend_role_name
+  assume_role_policy = data.aws_iam_policy_document.terraform_backend_assume_role.json
+}
+
+resource "aws_iam_role_policy" "terraform_s3_dynamo" {
+  name = "terraform-backend-access-policy"
+  role = aws_iam_role.terraform_backend_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket"]
+        Resource = "arn:aws:s3:::${var.tf_state_bucket}"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+        Resource = "arn:aws:s3:::${var.tf_state_bucket}/*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem", "dynamodb:UpdateItem"]
+        Resource = "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.tf_state_lock_table}"
+      }
+    ]
+  })
+}
+
 # Create the IAM role for EKS worker nodes.
 resource "aws_iam_role" "eks_node_role" {
   name               = "${var.cluster_name}-node-role"
@@ -273,5 +318,47 @@ resource "aws_instance" "bastion" {
 
   tags = {
     Name = "${var.cluster_name}-bastion"
+  }
+}
+
+# Create the S3 bucket used by Terraform remote state.
+#
+# This resource is bootstrapped before remote backend initialization.
+# Use `terraform init -backend=false` to provision this bucket and the
+# DynamoDB table locally, then reinitialize with the remote backend.
+resource "aws_s3_bucket" "terraform_state" {
+  bucket = var.tf_state_bucket
+  acl    = "private"
+
+  versioning {
+    enabled = true
+  }
+
+  server_side_encryption_configuration {
+    rule {
+      apply_server_side_encryption_by_default {
+        sse_algorithm = "AES256"
+      }
+    }
+  }
+
+  tags = {
+    Name = "${var.cluster_name}-terraform-state"
+  }
+}
+
+# Create the DynamoDB table used to lock Terraform remote state.
+resource "aws_dynamodb_table" "terraform_lock" {
+  name         = var.tf_state_lock_table
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "LockID"
+
+  attribute {
+    name = "LockID"
+    type = "S"
+  }
+
+  tags = {
+    Name = "${var.cluster_name}-terraform-lock"
   }
 }
