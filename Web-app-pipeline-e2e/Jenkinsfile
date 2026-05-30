@@ -1,12 +1,18 @@
 pipeline {
   agent any
 
+  parameters {
+    booleanParam(name: 'TF_APPLY', defaultValue: false, description: 'Apply Terraform infrastructure changes after planning')
+  }
+
   environment {
-    AWS_REGION = 'ap-south-1'
-    AWS_ACCOUNT_ID = '451620995756'
-    ECR_REPO_NAME = 'web-app-sprint1'
-    IMAGE_TAG = "${env.BUILD_ID}"
-    IMAGE_URI = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG}"
+    AWS_REGION          = 'ap-south-1'
+    AWS_ACCOUNT_ID      = '451620995756'
+    ECR_REPO_NAME       = 'web-app-sprint2'
+    TF_WORKING_DIR      = 'terraform'
+    TF_STATE_BUCKET     = 'webapp-pipeline-terraform-state'
+    TF_STATE_LOCK_TABLE = 'webapp-pipeline-terraform-lock'
+    TF_STATE_KEY        = 'global/sprint2/terraform.tfstate'
   }
 
   options {
@@ -21,6 +27,17 @@ pipeline {
       }
     }
 
+    stage('Set Branch Context') {
+      steps {
+        script {
+          env.BRANCH_NAME = env.BRANCH_NAME ?: 'main'
+          env.IMAGE_TAG = "${env.BUILD_ID}-${env.BRANCH_NAME.replaceAll('/','-')}"
+          env.IMAGE_URI = "${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_REGION}.amazonaws.com/${env.ECR_REPO_NAME}:${env.IMAGE_TAG}"
+          echo "Building branch ${env.BRANCH_NAME} with image tag ${env.IMAGE_TAG}"
+        }
+      }
+    }
+
     stage('Validate AWS Access') {
       steps {
         script {
@@ -29,12 +46,52 @@ pipeline {
       }
     }
 
+    stage('Terraform Init') {
+      steps {
+        dir("${TF_WORKING_DIR}") {
+          script {
+            sh '''
+              terraform init \
+                -backend-config="bucket=${TF_STATE_BUCKET}" \
+                -backend-config="key=${TF_STATE_KEY}" \
+                -backend-config="region=${AWS_REGION}" \
+                -backend-config="dynamodb_table=${TF_STATE_LOCK_TABLE}"
+            '''
+          }
+        }
+      }
+    }
+
+    stage('Terraform Plan') {
+      steps {
+        dir("${TF_WORKING_DIR}") {
+          script {
+            sh 'terraform plan -var-file=terraform.tfvars.example'
+          }
+        }
+      }
+    }
+
+    stage('Terraform Apply') {
+      when {
+        allOf {
+          expression { params.TF_APPLY }
+          expression { env.BRANCH_NAME == 'main' }
+        }
+      }
+      steps {
+        dir("${TF_WORKING_DIR}") {
+          script {
+            sh 'terraform apply -auto-approve -var-file=terraform.tfvars.example'
+          }
+        }
+      }
+    }
+
     stage('Build Docker Image') {
       steps {
-        dir('Web-app-pipeline-e2e') {
-          script {
-            sh 'docker build -t web-app-sprint1:${IMAGE_TAG} .'
-          }
+        script {
+          sh 'docker build -t web-app-sprint2:${IMAGE_TAG} .'
         }
       }
     }
@@ -50,12 +107,17 @@ pipeline {
     }
 
     stage('Push Image to ECR') {
+      when {
+        expression {
+          return env.BRANCH_NAME == 'main' || env.BRANCH_NAME == 'develop' || env.BRANCH_NAME.startsWith('feature/')
+        }
+      }
       steps {
         script {
           sh '''
             aws ecr describe-repositories --repository-names ${ECR_REPO_NAME} --region ${AWS_REGION} || \
               aws ecr create-repository --repository-name ${ECR_REPO_NAME} --region ${AWS_REGION}
-            docker tag web-app-sprint1:${IMAGE_TAG} ${IMAGE_URI}
+            docker tag web-app-sprint2:${IMAGE_TAG} ${IMAGE_URI}
             docker push ${IMAGE_URI}
           '''
         }
