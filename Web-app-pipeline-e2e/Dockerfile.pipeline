@@ -1,0 +1,11 @@
+FROM hashicorp/terraform:1.6
+
+# Install AWS CLI and other dependencies
+RUN apk add --no-cache \
+    python3 \
+    py3-pip \
+    docker-cli \
+    git \
+    && pip3 install --no-cache-dir awscli
+
+ENTRYPOINT []
