@@ -2,6 +2,7 @@ pipeline {
   agent {
     dockerfile {
       filename 'Dockerfile.pipeline'
+      dir 'Web-app-pipeline-e2e'
       args '-v /var/run/docker.sock:/var/run/docker.sock'
     }
   }
