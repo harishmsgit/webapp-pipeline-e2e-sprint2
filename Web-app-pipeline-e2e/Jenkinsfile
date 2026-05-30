@@ -19,6 +19,8 @@ pipeline {
   options {
     skipDefaultCheckout()
     timestamps()
+    buildDiscarder(logRotator(numToKeepStr: '20'))
+    ansiColor('xterm')
   }
 
   stages {
@@ -36,11 +38,12 @@ pipeline {
       }
     }
 
-    stage('Set Branch Context') {
+    stage('Set Build Context') {
       steps {
         script {
-          env.BRANCH_NAME = env.BRANCH_NAME ?: 'main'
-          env.IMAGE_TAG = "${env.BUILD_ID}-${env.BRANCH_NAME.replaceAll('/', '-')}"
+          env.BRANCH_NAME = env.BRANCH_NAME ?: sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
+          env.SAFE_BRANCH_NAME = env.BRANCH_NAME.replaceAll(/[^A-Za-z0-9._-]/, '-')
+          env.IMAGE_TAG = "${env.BUILD_ID}-${env.SAFE_BRANCH_NAME}"
           env.IMAGE_URI = "${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_REGION}.amazonaws.com/${env.ECR_REPO_NAME}:${env.IMAGE_TAG}"
           echo "Building branch ${env.BRANCH_NAME} with image tag ${env.IMAGE_TAG}"
         }
@@ -57,18 +60,13 @@ pipeline {
       }
     }
 
-    stage('Bootstrap Terraform Backend') {
+    stage('Terraform Format') {
       steps {
         script {
           withDockerContainer(image: "${DOCKER_IMAGE}", args: '-v /var/run/docker.sock:/var/run/docker.sock') {
             sh '''
               cd Web-app-pipeline-e2e/terraform
-              if ! aws s3api head-bucket --bucket ${TF_STATE_BUCKET} >/dev/null 2>&1 || \
-                 ! aws dynamodb describe-table --table-name ${TF_STATE_LOCK_TABLE} --region ${AWS_REGION} >/dev/null 2>&1; then
-                sh ./bootstrap-backend.sh
-              else
-                echo "Terraform backend already exists"
-              fi
+              terraform fmt -check
             '''
           }
         }
@@ -92,6 +90,19 @@ pipeline {
       }
     }
 
+    stage('Terraform Validate') {
+      steps {
+        script {
+          withDockerContainer(image: "${DOCKER_IMAGE}", args: '-v /var/run/docker.sock:/var/run/docker.sock') {
+            sh '''
+              cd Web-app-pipeline-e2e/terraform
+              terraform validate
+            '''
+          }
+        }
+      }
+    }
+
     stage('Terraform Plan') {
       steps {
         script {
@@ -109,7 +120,7 @@ pipeline {
       when {
         allOf {
           expression { params.TF_APPLY }
-          expression { env.BRANCH_NAME == 'main' }
+          branch 'main'
         }
       }
       steps {
@@ -139,7 +150,7 @@ pipeline {
         script {
           withDockerContainer(image: "${DOCKER_IMAGE}", args: '-v /var/run/docker.sock:/var/run/docker.sock') {
             sh '''
-              aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+              aws ecr get-login --no-include-email --region ${AWS_REGION} | sh
             '''
           }
         }
@@ -147,11 +158,6 @@ pipeline {
     }
 
     stage('Push Image to ECR') {
-      when {
-        expression {
-          return env.BRANCH_NAME == 'main' || env.BRANCH_NAME == 'develop' || env.BRANCH_NAME.startsWith('feature/')
-        }
-      }
       steps {
         script {
           withDockerContainer(image: "${DOCKER_IMAGE}", args: '-v /var/run/docker.sock:/var/run/docker.sock') {
