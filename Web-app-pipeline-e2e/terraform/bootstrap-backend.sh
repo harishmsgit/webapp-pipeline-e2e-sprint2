@@ -16,12 +16,25 @@ This helper bootstraps remote backend resources in two phases:
   3. reinitialize Terraform with the remote backend configured
 EOF
 
-terraform init -backend=false
+original_backend_file="backend.tf"
+backup_backend_file="backend.tf.disabled"
+
+if [ -f "$original_backend_file" ]; then
+  mv "$original_backend_file" "$backup_backend_file"
+fi
+
+trap 'if [ -f "$backup_backend_file" ]; then mv "$backup_backend_file" "$original_backend_file"; fi' EXIT INT TERM
+
+terraform init
 terraform apply -auto-approve -var-file=terraform.tfvars \
   -target=aws_s3_bucket.terraform_state \
   -target=aws_dynamodb_table.terraform_lock \
   -target=aws_iam_role.terraform_backend_role \
   -target=aws_iam_role_policy.terraform_s3_dynamo
+
+if [ -f "$backup_backend_file" ]; then
+  mv "$backup_backend_file" "$original_backend_file"
+fi
 
 terraform init -reconfigure \
   -backend-config="bucket=webapp-pipeline-terraform-state" \
