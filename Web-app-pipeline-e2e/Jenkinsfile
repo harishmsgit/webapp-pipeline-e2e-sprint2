@@ -50,6 +50,21 @@ pipeline {
       }
     }
 
+    stage('Free Disk Space') {
+      steps {
+        script {
+          sh '''
+            echo "Current disk usage:"
+            df -h
+            echo "Cleaning up Docker system..."
+            docker system prune -a -f --volumes
+            echo "Disk space after cleanup:"
+            df -h
+          '''
+        }
+      }
+    }
+
     stage('Validate AWS Access') {
       steps {
         script {
@@ -122,7 +137,6 @@ pipeline {
           sh '''
             cd Web-app-pipeline-e2e/terraform
             rm -rf .terraform .terraform.lock.hcl
-            docker system prune -f --volumes
           '''
         }
       }
