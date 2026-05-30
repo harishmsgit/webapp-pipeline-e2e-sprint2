@@ -1,5 +1,10 @@
 pipeline {
-  agent any
+  agent {
+    docker {
+      image 'hashicorp/terraform:1.6'
+      args '-v /var/run/docker.sock:/var/run/docker.sock --entrypoint=""'
+    }
+  }
 
   parameters {
     booleanParam(name: 'TF_APPLY', defaultValue: false, description: 'Apply Terraform infrastructure changes after planning')
