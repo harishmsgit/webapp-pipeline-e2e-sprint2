@@ -2,7 +2,7 @@
 # Copy this to terraform.tfvars and update values for your AWS account and environment.
 
 aws_region           = "ap-south-1"          # AWS region used for all resources.
-aws_account_id       = "451620995756"        # AWS account ID for resource naming and permissions.
+aws_account_id       = "234951664603"        # AWS account ID for resource naming and permissions.
 tf_state_bucket      = "webapp-pipeline-terraform-state" # S3 bucket for remote Terraform state.
 tf_state_lock_table  = "webapp-pipeline-terraform-lock"   # DynamoDB table for state locking.
 tf_state_key         = "global/sprint2/terraform.tfstate" # S3 object key for remote state.

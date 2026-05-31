@@ -11,7 +11,7 @@ variable "aws_account_id" {
   # Account ID used for names, permissions, and ECR repository references.
   description = "AWS account ID used for resource naming and permissions"
   type        = string
-  default     = "451620995756"
+  default     = "234951664603"
 }
 
 variable "tf_state_bucket" {

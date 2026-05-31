@@ -7,7 +7,7 @@ pipeline {
 
   environment {
     AWS_REGION          = 'ap-south-1'
-    AWS_ACCOUNT_ID      = '451620995756'
+    AWS_ACCOUNT_ID      = '234951664603'
     ECR_REPO_NAME       = 'web-app-sprint2'
     TF_WORKING_DIR      = 'terraform'
     TF_STATE_BUCKET     = 'webapp-pipeline-terraform-state'
