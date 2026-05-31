@@ -42,7 +42,7 @@ This workspace now includes Sprint 2 infrastructure provisioning and Jenkins int
 
 1. Build locally:
    ```sh
-   docker build -t web-app-sprint1:latest .
+   docker build -t web-app-sprint3:latest .
    ```
 2. Run locally:
    ```sh
